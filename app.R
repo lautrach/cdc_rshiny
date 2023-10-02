@@ -16,8 +16,10 @@ library(plotly)
 library("shinyMatrix")
 library(DT)
 library(tibble)
-library(shinyscreenshot)
+# library(shinyscreenshot)
 library(samplingbook)
+library(xtable)
+library(gridExtra)
 
 
 
@@ -132,7 +134,7 @@ ui <- fluidPage(theme= shinytheme("yeti"),
                              fluidRow(
                                column(
                                  2,
-                                 actionButton("go", "Take a screenshot")
+                                 downloadButton("downloadPDF", "Download PDF")
                                ),
                                column(
                                  10,
@@ -342,9 +344,39 @@ server <- function(session, input, output) {
     Recommendation()
   })
   
-  observeEvent(input$go, {
-    screenshot()
-  })
+  
+  output$downloadPDF <- downloadHandler(
+    filename = function() {
+      paste("My_Report-", Sys.Date(), ".pdf", sep = "")
+    },
+    content = function(file) {
+      message("Starting PDF generation.")
+      # Open PDF
+      pdf(file)
+      # Setup margins
+      par(mar = c(5.1, 4.1, 4.1, 2.1))
+      
+      #Show the table in PDF
+      table <- xtable(m)
+      grid.table(table);
+      
+      # Generate and plot the Abbott data
+      plot_data <- Abbott()
+      if (!is.null(plot_data)) {
+        message("Plotting data.")
+        plot(plot_data)
+      }
+      # upload_data <- Upload()
+      # message("test1")
+      # if (is.data.frame(upload_data) && !is.null(upload_data) && nrow(upload_data) > 0 && ncol(upload_data) > 0) {
+      #   message("Printing table.")
+      #   print(xtable::xtable(upload_data))
+      # }
+      
+      dev.off()
+    }
+  )
+
   
   output$instructions = renderText({
     paste("The steps below will help you to analyze data from the CDC bottle bioassay according to the <u><a href=\"https://www.cdc.gov/mosquitoes/pdfs/CONUS-508.pdf\">CONUS Manual for Evaluating Insecticide Resistance in Mosquitoes Using the CDC Bottle Bioassay Kit[PDF – 19 pages]</a></u><br>
