@@ -65,11 +65,11 @@ m <- matrix(c(0,0,0,0,0,0,
               90,23,23,22,24,2,
               105,24,24,22,24,3,
               120,24,24,24,24,24), 15, 6, byrow=TRUE, dimnames = list(NULL, c("Time",
-                                                       "Bottle1 Dead",
-                                                       "Bottle2 Dead",
-                                                       "Bottle3 Dead",
-                                                       "Bottle4 Dead",
-                                                       "Control Dead")))
+                                                                              "Bottle1 Dead",
+                                                                              "Bottle2 Dead",
+                                                                              "Bottle3 Dead",
+                                                                              "Bottle4 Dead",
+                                                                              "Control Dead")))
 
 ## Diagnostic times from CDC Manual
 diagtimes = matrix(c(20, 45, 45, 90, 45, 60, 0.75, 30, 30, 45, 60, 0, 12.5, 15, 30, 15, 30, 60, 800, 0, 0, 75, 45,
@@ -80,91 +80,70 @@ rownames(diagtimes) = c("Chlorpyrifos", "Deltamethrin", "Etofenprox", "Fenthion"
 colnames(diagtimes)= c("Insecticide Conc.", "Ae. aegypti", "Ae. albopictus", "Cx. pipens", "Cx. quinquefasciatus", "Cx. tarsalis")
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(theme= shinytheme("yeti"),
-                  tabsetPanel(
-                    tabPanel("Insecticide Mortality", fluid=TRUE,
-                             fluidRow(
-                               column(
-                               12,
-                               htmlOutput("instructions"))
+ui <- fluidPage(
+  theme = shinytheme("yeti"),
+  tabsetPanel(
+    tabPanel("Insecticide Mortality", fluid = TRUE,
+             fluidRow(column(12, htmlOutput("instructions"))),
+             fluidRow(column(12, htmlOutput("step1"))),
+             fluidRow(column(2, selectInput('insecticides', "Insecticides", c(None = "", rownames(diagtimes)))),
+                      column(2, selectInput('species', "Species", c(None = "", colnames(diagtimes)[2:6]))),
+                      column(8, htmlOutput("datacheck"))),
+             fluidRow(column(6, htmlOutput("step2")),
+                      column(5, htmlOutput("recommendation"))),
+             fluidRow(column(4,
+                             span(tags$h4("Data"), style = "color:blue; font-family:arial; font-style:italic"),
+                             selectInput("dropdown_data", 
+                                         "Choose a method of uploading data:", 
+                                         choices = c("Select an option..." = "", "Manual Entry" = "Manual Entry", "File Upload" = "File Upload"),
+                                         selected = "Select an option..."),
+                             conditionalPanel(
+                               condition = "input.dropdown_data === 'Manual Entry'",
+                               matrixInput("sample",
+                                           value = m,
+                                           rows = list(names = FALSE),
+                                           cols = list(names = TRUE),
+                                           class = 'numeric')
                              ),
-                             fluidRow(
-                               column(
-                                 12,
-                                 htmlOutput("step1"))),
-                             fluidRow(
-                               column(
-                                 2,
-                                 selectInput('insecticides', "Insecticides", c(None="", rownames(diagtimes)))
-                               ),
-                               column(
-                                 2,
-                                 selectInput('species', "Species", c(None="", colnames(diagtimes)[2:6]))
-                               ),
-                               column(
-                                 8,
-                                 htmlOutput("datacheck")
-                               )
-                             ),
-                             fluidRow(
-                               column(
-                                 6,
-                                 htmlOutput("step2")
-                               ),
-                               column(
-                                 5,
-                                 htmlOutput("recommendation")
-                               )
-                             ),
-                             fluidRow(
-                               column(
-                                 4,
-                                 span(tags$h4("Data"), style="color:blue; font-family:arial; font-style:italic"),
-                                 matrixInput("sample",
-                                             value=m,
-                                             rows=list(names=FALSE),
-                                             cols=list(names=TRUE),
-                                             class='numeric')
-                               ),
-                               column(
-                                 8,
-                                 span(tags$h4("Resistance Plots"), style="color:blue; font-family:arial; font-style:italic"),
-                                 plotOutput("plot"))
-                             ),
-                             fluidRow(
-                               column(
-                                 2,
-                                 downloadButton("downloadPDF", "Download PDF")
-                               ),
-                               column(
-                                 10,
-                                 htmlOutput("resistantstate")
-                               )
-                             )),
-                    tabPanel("Insecticide Diagnostic Times", fluid=TRUE,
-                             sidebarLayout(
-                               sidebarPanel(
-                                 fileInput("file1", "Choose CSV File", accept = ".csv"),
-                                 checkboxInput("header", "Header", TRUE),
-                                 actionButton("Splitcolumn", "SplitColumn"),
-                                 uiOutput("selectUI"),
-                                 actionButton("deleteRows", "Delete Rows"),
-                                 textInput("textbox", label="Input the value to replace:"),
-                                 actionButton("replacevalues", label = 'Replace values'),
-                                 actionButton("removecolumn", "Remove Column"),
-                                 actionButton("Undo", 'Undo')
-                               ),
-                               mainPanel(
-                                 DTOutput("table1")))),
-                )
-                    )
+                             conditionalPanel(
+                               condition = "input.dropdown_data === 'File Upload'",
+                               fileInput("datafile", "Upload CSV File", accept = ".csv")
+                             )
+             ),
+             column(8,
+                    span(tags$h4("Resistance Plots"), style = "color:blue; font-family:arial; font-style:italic"),
+                    plotOutput("plot"))
+             ),
+             fluidRow(column(2, downloadButton("downloadPDF", "Download PDF")),
+                      column(10, htmlOutput("resistantstate")))
+    ),
+    tabPanel("Insecticide Diagnostic Times", fluid = TRUE,
+             sidebarLayout(
+               sidebarPanel(
+                 fileInput("file1", "Choose CSV File", accept = ".csv"),
+                 checkboxInput("header", "Header", TRUE),
+                 actionButton("Splitcolumn", "SplitColumn"),
+                 uiOutput("selectUI"),
+                 actionButton("deleteRows", "Delete Rows"),
+                 textInput("textbox", label = "Input the value to replace:"),
+                 actionButton("replacevalues", label = 'Replace values'),
+                 actionButton("removecolumn", "Remove Column"),
+                 actionButton("Undo", 'Undo')
+               ),
+               mainPanel(
+                 DTOutput("table1")
+               )
+             )
+    )
+  )
+)
 
 # Define server function
 server <- function(session, input, output) {
   library(tidyverse)
   library(tibble)
   rv <- reactiveValues(data = diagtimes , orig=diagtimes)
-
+  
   observeEvent(input$file1, {
     file <- input$file1
     ext <- tools::file_ext(file$datapath)
@@ -176,7 +155,7 @@ server <- function(session, input, output) {
     rv$orig <- read.csv(file$datapath, header = input$header, )
     rv$data <- rv$orig
   })
-
+  
   output$selectUI<-renderUI({
     req(rv$data)
     selectInput(inputId='selectcolumn', label='select column', choices = names(rv$data))
@@ -240,27 +219,27 @@ server <- function(session, input, output) {
   output$datacheck = renderText({
     Datacheck()
   })
-
+  
   Abbott = reactive({
     req(input$insecticides)
     req(input$species)
     data = as.data.frame(input$sample)
     mortality = data
     for(c in 2:ncol(data)){mortality[,c]=data[,c]/data[nrow(data),c]} #calculate %mortality based on final count of live and dead
-
+    
     #Abbot's
     if(mortality$Control[(nrow(data)-1)]>0.03){ #use Abbot's
       for(c in 2:(ncol(data)-1)){
         mortality[,c]=(mortality[,c]-mortality[,ncol(data)])/(1-mortality[,ncol(data)])
       }}
-
+    
     diag_time <<- diagtimes[input$insecticides, input$species]
     print(input$insecticides)
     print(input$species)
     print(diag_time)
     print(diagtimes)
     conc <<- diagtimes[input$insecticides, 1]
-
+    
     mortality$Median=apply(mortality[,2:(ncol(data)-1)],1,median,na.rm=T)
     mortality_long=pivot_longer(mortality[,1:(ncol(data)-1)],cols = 2:(ncol(data)-1),names_to = "Replicate",values_to = "Mortality")
     color_breaks <- data.frame(start = c(0, 0.9, 0.97),  # Create data with breaks
@@ -268,27 +247,27 @@ server <- function(session, input, output) {
                                colors = c("#FF0000","#FF9900","#FFFF99"))
     
     graph1 = ggplot()+
-    #plotting the guides
+      #plotting the guides
       geom_rect(aes(xmin=0,xmax=Inf,ymin=0,ymax=0.9),alpha=0.5,fill="red")+
       geom_rect(aes(xmin=0,xmax=Inf,ymin=0.9,ymax=0.97),alpha=0.5,fill="orange")+
       geom_rect(aes(xmin=0,xmax=Inf,ymin=0.97,ymax=1),alpha=0.5,fill="yellow")+
       geom_vline(xintercept = diag_time,color="blue",linetype="dotted")+ #diagnostic time line
-    #plotting the observations
-    #leaves off the final row to avoid including the live ones
-    #individual replicates
+      #plotting the observations
+      #leaves off the final row to avoid including the live ones
+      #individual replicates
       geom_line(data=mortality_long[which(mortality_long$Time<max(data$Time)),], 
                 aes(x=Time,y=Mortality,group=Replicate),color="white",linetype="dashed")+
-    #median of all replicates
+      #median of all replicates
       geom_line(data=mortality[1:(nrow(data)-1),], 
                 aes(x=Time,y=Median))+
-    #labels
+      #labels
       ylab("Percent Mortality")+xlab("Time (minutes)")+
       theme_minimal()
-
+    
     rv$state = TRUE
     mortality_locked <<- mortality
     print(graph1)
-    })
+  })
   
   output$plot = renderPlot({
     Abbott()
@@ -322,11 +301,11 @@ server <- function(session, input, output) {
     }
     else{
       paste("<font color=\"#FFFF99\"><u><b>Resistant:</b> Consider intensity testing (looking at mortality at 120 minutes or CDC bottle bioassay with 1X, 2X, 5X, and 10X the diagnostic dosage of insecticide ), mechanism testing ( enzymes, molecular assays, or CDC bottle bioassay with inhibitors) and field testing. Avoid this insecticide in this population</u></font>")
-      }
-    })
+    }
+  })
   
   output$resistantstate = renderText({
-   ResistantState()
+    ResistantState()
   })
   
   
@@ -376,7 +355,7 @@ server <- function(session, input, output) {
       dev.off()
     }
   )
-
+  
   
   output$instructions = renderText({
     paste("The steps below will help you to analyze data from the CDC bottle bioassay according to the <u><a href=\"https://www.cdc.gov/mosquitoes/pdfs/CONUS-508.pdf\">CONUS Manual for Evaluating Insecticide Resistance in Mosquitoes Using the CDC Bottle Bioassay Kit[PDF – 19 pages]</a></u><br>
@@ -389,7 +368,7 @@ server <- function(session, input, output) {
   output$step2 = renderText({
     print("<font color=\"#ff00ff\"; font-family:times><b>Step 2: Enter the number of dead mosquitos at each time point in each bottle into the table. At the final time point, enter the total number of mosquitoes (dead and alive) in the bottles. It may help in counting to freeze the bottle at the end of the experiment to knock down all the mosquitoes</b></font>")
   })
-
+  
 } #server
 
 # Run the application 
