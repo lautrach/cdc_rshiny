@@ -82,6 +82,34 @@ colnames(diagtimes)= c("Insecticide Conc.", "Ae. aegypti", "Ae. albopictus", "Cx
 # Define UI for application that draws a histogram
 ui <- fluidPage(
   theme = shinytheme("yeti"),
+  tags$head(
+    tags$style(HTML("
+      @font-face {
+        font-family: 'DIN Next';
+        src: url('DINNextW1G-Regular.otf') format('opentype');
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'DIN Next Thin';
+        src: url('DINNextLight.otf') format('opentype');
+        font-weight: normal;
+        font-style: normal;
+        .din-next-font {
+          font-family: 'DIN Next', sans-serif;
+        }
+        .din-next-thin {
+          font-family: 'DIN Next Thin', sans-serif;
+        }
+        #header {
+        background-color: transparent;
+      }
+      "))
+                ),
+                div(
+                  id = "header",
+                  tags$img(src = "Logo 2 MCEVBD.png", height = "90px"),
+                ),
   tabsetPanel(
     tabPanel("Insecticide Mortality", fluid = TRUE,
              fluidRow(column(12, htmlOutput("instructions"))),
