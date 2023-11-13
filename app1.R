@@ -252,6 +252,8 @@ server <- function(session, input, output) {
   Abbott = reactive({
     req(input$insecticides)
     req(input$species)
+    # req(rv$state)
+    
     data = as.data.frame(input$sample)
     mortality = data
     for(c in 2:ncol(data)){mortality[,c]=data[,c]/data[nrow(data),c]} #calculate %mortality based on final count of live and dead
@@ -296,6 +298,8 @@ server <- function(session, input, output) {
     rv$state = TRUE
     mortality_locked <<- mortality
     print(graph1)
+    df = mortality_locked[1:(nrow(as.data.frame(input$sample))-1),]
+    observed_per <<- df[df$Time == diag_time, ]$Median
   })
   
   output$plot = renderPlot({
@@ -342,7 +346,10 @@ server <- function(session, input, output) {
     req(rv$state2)
     req(input$insecticides)
     req(input$species)
-    n_rec = sample.size.prop(e=0.1*observed_per, P=observed_per, N=Inf, level=0.80)[[2]]
+    print(paste("observed_per", observed_per))
+    n_rec = sample.size.prop(e=0.1 * observed_per, P=observed_per, N=Inf, level=0.80)[[2]]
+    print(paste("n_rec:", n_rec))
+    print(paste("diag_time", diag_time))
     paste("<font color=\"#D70040\"><u>It is recommended that you have", n_rec,
           "mosquitoes, treat each bottle with", conc,"ug of insecticide and track mortality for a minimum of", diag_time,
           "minutes</u></font>")
