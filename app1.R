@@ -329,7 +329,7 @@ server <- function(session, input, output) {
     if (observed_per > 0.97){
       paste("<font color=\"#C41E3A\"><u><b>SNo resistance detected (population susceptible): </b> Consider baseline mechanism testing (enzymes, molecular assays, or CDC bottle bioassay with inhibitors). <b>Continue monitoring.</b></u></font>")
     }
-    else if( (observed_per >= 0.90) || (observed_per <= 0.96)){
+    else if( (observed_per >= 0.90) && (observed_per <= 0.96)){
       paste("<font color=\"#C41E3A\"><u><b>Developing resistance:</b> Consider mechanism testing (enzymes, molecular assays, or CDC bottle bioassay with inhibitors) and field testing.<b> Rotate insecticide products and implem entintegrated pest management best practices.</b></u></font>")
     }
     else{
