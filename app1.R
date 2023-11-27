@@ -341,13 +341,33 @@ server <- function(session, input, output) {
     ResistantState()
   })
   
-  
+  # 
+  # Recommendation = reactive({
+  #   req(rv$state2)
+  #   req(input$insecticides)
+  #   req(input$species)
+  #   print(paste("observed_per", observed_per))
+  #   n_rec = sample.size.prop(e=0.1 * observed_per, P=observed_per, N=Inf, level=0.80)[[2]]
+  #   print(paste("n_rec:", n_rec))
+  #   print(paste("diag_time", diag_time))
+  #   paste("<font color=\"#D70040\"><u>It is recommended that you have", n_rec,
+  #         "mosquitoes, treat each bottle with", conc,"ug of insecticide and track mortality for a minimum of", diag_time,
+  #         "minutes</u></font>")
+  # })
+
+
   Recommendation = reactive({
     req(rv$state2)
     req(input$insecticides)
     req(input$species)
+
     print(paste("observed_per", observed_per))
+    if (0.1 * observed_per > observed_per || 0.1 * observed_per > (1 - observed_per)) {
+      return("No recommended diagnostic time available for this insecticide in this mosquito species. Please choose a different insecticide.")
+    }
     n_rec = sample.size.prop(e=0.1 * observed_per, P=observed_per, N=Inf, level=0.80)[[2]]
+    
+  
     print(paste("n_rec:", n_rec))
     print(paste("diag_time", diag_time))
     paste("<font color=\"#D70040\"><u>It is recommended that you have", n_rec,
@@ -355,6 +375,7 @@ server <- function(session, input, output) {
           "minutes</u></font>")
   })
   
+
   output$recommendation = renderText({
     Recommendation()
   })
