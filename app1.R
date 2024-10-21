@@ -1,12 +1,3 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
 library(shiny)
 library(shinythemes)
 library(reshape2)
@@ -16,7 +7,6 @@ library(plotly)
 library("shinyMatrix")
 library(DT)
 library(tibble)
-# library(shinyscreenshot)
 library(samplingbook)
 library(xtable)
 library(gridExtra)
@@ -249,57 +239,123 @@ server <- function(session, input, output) {
     Datacheck()
   })
   
+  # Abbott = reactive({
+  #   req(input$insecticides)
+  #   req(input$species)
+  #   # req(rv$state)
+  #   
+  #   data = as.data.frame(input$sample)
+  #   mortality = data
+  #   for(c in 2:ncol(data)){mortality[,c]=data[,c]/data[nrow(data),c]} #calculate %mortality based on final count of live and dead
+  #   
+  #   #Abbot's
+  #   if(mortality$Control[(nrow(data)-1)]>0.03){ #use Abbot's
+  #     for(c in 2:(ncol(data)-1)){
+  #       mortality[,c]=(mortality[,c]-mortality[,ncol(data)])/(1-mortality[,ncol(data)])
+  #     }}
+  #   
+  #   diag_time <<- diagtimes[input$insecticides, input$species]
+  #   print(input$insecticides)
+  #   print(input$species)
+  #   print(diag_time)
+  #   print(diagtimes)
+  #   conc <<- diagtimes[input$insecticides, 1]
+  #   
+  #   mortality$Median=apply(mortality[,2:(ncol(data)-1)],1,median,na.rm=T)
+  #   mortality_long=pivot_longer(mortality[,1:(ncol(data)-1)],cols = 2:(ncol(data)-1),names_to = "Replicate",values_to = "Mortality")
+  #   color_breaks <- data.frame(start = c(0, 0.9, 0.97),  # Create data with breaks
+  #                              end = c(0.9, 0.97, 1),
+  #                              colors = c("#FF0000","#FF9900","#FFFF99"))
+  #   
+  #   graph1 = ggplot()+
+  #     #plotting the guides
+  #     geom_rect(aes(xmin=0,xmax=Inf,ymin=0,ymax=0.9),alpha=0.5,fill="red")+
+  #     geom_rect(aes(xmin=0,xmax=Inf,ymin=0.9,ymax=0.97),alpha=0.5,fill="orange")+
+  #     geom_rect(aes(xmin=0,xmax=Inf,ymin=0.97,ymax=1),alpha=0.5,fill="yellow")+
+  #     geom_vline(xintercept = diag_time,color="blue",linetype="dotted")+ #diagnostic time line
+  #     #plotting the observations
+  #     #leaves off the final row to avoid including the live ones
+  #     #individual replicates
+  #     geom_line(data=mortality_long[which(mortality_long$Time<max(data$Time)),], 
+  #               aes(x=Time,y=Mortality,group=Replicate),color="white",linetype="dashed")+
+  #     #median of all replicates
+  #     geom_line(data=mortality[1:(nrow(data)-1),], 
+  #               aes(x=Time,y=Median))+
+  #     #labels
+  #     ylab("Percent Mortality")+xlab("Time (minutes)")+
+  #     theme_minimal()
+  #   
+  #   rv$state = TRUE
+  #   mortality_locked <<- mortality
+  #   print(graph1)
+  #   df = mortality_locked[1:(nrow(as.data.frame(input$sample))-1),]
+  #   observed_per <<- df[df$Time == diag_time, ]$Median
+  # })
   Abbott = reactive({
     req(input$insecticides)
     req(input$species)
-    # req(rv$state)
     
+    # Get the data from the input
     data = as.data.frame(input$sample)
+    
+    # Calculate mortality
     mortality = data
-    for(c in 2:ncol(data)){mortality[,c]=data[,c]/data[nrow(data),c]} #calculate %mortality based on final count of live and dead
+    for(c in 2:ncol(data)) {
+      mortality[,c] = data[,c] / data[nrow(data),c]
+    }
     
-    #Abbot's
-    if(mortality$Control[(nrow(data)-1)]>0.03){ #use Abbot's
-      for(c in 2:(ncol(data)-1)){
-        mortality[,c]=(mortality[,c]-mortality[,ncol(data)])/(1-mortality[,ncol(data)])
-      }}
+    # Apply Abbott's correction if control mortality > 3%
+    if(mortality$Control[(nrow(data)-1)] > 0.03) {
+      for(c in 2:(ncol(data)-1)) {
+        mortality[,c] = (mortality[,c] - mortality[,ncol(data)]) / (1 - mortality[,ncol(data)])
+      }
+    }
     
+    # Get diagnostic time and concentration
     diag_time <<- diagtimes[input$insecticides, input$species]
-    print(input$insecticides)
-    print(input$species)
-    print(diag_time)
-    print(diagtimes)
     conc <<- diagtimes[input$insecticides, 1]
     
-    mortality$Median=apply(mortality[,2:(ncol(data)-1)],1,median,na.rm=T)
-    mortality_long=pivot_longer(mortality[,1:(ncol(data)-1)],cols = 2:(ncol(data)-1),names_to = "Replicate",values_to = "Mortality")
-    color_breaks <- data.frame(start = c(0, 0.9, 0.97),  # Create data with breaks
-                               end = c(0.9, 0.97, 1),
-                               colors = c("#FF0000","#FF9900","#FFFF99"))
+    # Calculate median mortality
+    mortality$Median = apply(mortality[,2:(ncol(data)-1)], 1, median, na.rm=TRUE)
     
-    graph1 = ggplot()+
-      #plotting the guides
-      geom_rect(aes(xmin=0,xmax=Inf,ymin=0,ymax=0.9),alpha=0.5,fill="red")+
-      geom_rect(aes(xmin=0,xmax=Inf,ymin=0.9,ymax=0.97),alpha=0.5,fill="orange")+
-      geom_rect(aes(xmin=0,xmax=Inf,ymin=0.97,ymax=1),alpha=0.5,fill="yellow")+
-      geom_vline(xintercept = diag_time,color="blue",linetype="dotted")+ #diagnostic time line
-      #plotting the observations
-      #leaves off the final row to avoid including the live ones
-      #individual replicates
-      geom_line(data=mortality_long[which(mortality_long$Time<max(data$Time)),], 
-                aes(x=Time,y=Mortality,group=Replicate),color="white",linetype="dashed")+
-      #median of all replicates
-      geom_line(data=mortality[1:(nrow(data)-1),], 
-                aes(x=Time,y=Median))+
-      #labels
-      ylab("Percent Mortality")+xlab("Time (minutes)")+
+    # Prepare data for plotting
+    mortality_long = pivot_longer(mortality[,1:(ncol(data)-1)], 
+                                  cols = 2:(ncol(data)-1), 
+                                  names_to = "Replicate", 
+                                  values_to = "Mortality")
+    
+    # Create the plot
+    graph1 = ggplot() +
+      # Background rectangles for resistance levels
+      geom_rect(aes(xmin=0, xmax=Inf, ymin=0, ymax=0.9), alpha=0.5, fill="red") +
+      geom_rect(aes(xmin=0, xmax=Inf, ymin=0.9, ymax=0.97), alpha=0.5, fill="orange") +
+      geom_rect(aes(xmin=0, xmax=Inf, ymin=0.97, ymax=1), alpha=0.5, fill="yellow") +
+      # Diagnostic time line
+      geom_vline(xintercept = diag_time, color="blue", linetype="dotted") +
+      # Individual replicate lines
+      geom_line(data=mortality_long[which(mortality_long$Time < max(data$Time)),],
+                aes(x=Time, y=Mortality, group=Replicate), color="white", linetype="dashed") +
+      # Median mortality line
+      geom_line(data=mortality[1:(nrow(data)-1),],
+                aes(x=Time, y=Median)) +
+      # Labels and theme
+      ylab("Percent Mortality") + 
+      xlab("Time (minutes)") +
       theme_minimal()
     
+    # Print plot for debugging
+    print("Abbott() function output:")
+    print(graph1)
+    
+    # Set reactive values
     rv$state = TRUE
     mortality_locked <<- mortality
-    print(graph1)
+    
+    # Calculate observed percentage at diagnostic time
     df = mortality_locked[1:(nrow(as.data.frame(input$sample))-1),]
     observed_per <<- df[df$Time == diag_time, ]$Median
+    
+    return(graph1)
   })
   
   output$plot = renderPlot({
@@ -354,8 +410,7 @@ server <- function(session, input, output) {
   #         "mosquitoes, treat each bottle with", conc,"ug of insecticide and track mortality for a minimum of", diag_time,
   #         "minutes</u></font>")
   # })
-
-
+  
   Recommendation = reactive({
     req(rv$state2)
     req(input$insecticides)
@@ -381,39 +436,80 @@ server <- function(session, input, output) {
   })
   
   
+  # output$downloadPDF <- downloadHandler(
+  #   filename = function() {
+  #     paste("My_Report-", Sys.Date(), ".pdf", sep = "")
+  #   },
+  #   content = function(file) {
+  #     message("Starting PDF generation.")
+  #     # Open PDF
+  #     pdf(file)
+  #     # Setup margins
+  #     par(mar = c(5.1, 4.1, 4.1, 2.1))
+  #     
+  #     #Show the table in PDF
+  #     table <- xtable(m)
+  #     grid.table(table);
+  #     
+  #     # Generate and plot the Abbott data
+  #     plot_data <- Abbott()
+  #     if (!is.null(plot_data)) {
+  #       message("Plotting data.")
+  #       plot(plot_data)
+  #     }
+  #     # upload_data <- Upload()
+  #     # message("test1")
+  #     # if (is.data.frame(upload_data) && !is.null(upload_data) && nrow(upload_data) > 0 && ncol(upload_data) > 0) {
+  #     #   message("Printing table.")
+  #     #   print(xtable::xtable(upload_data))
+  #     # }
+  #     
+  #     dev.off()
+  #   }
+  # )
+  # Update the downloadPDF handler:
   output$downloadPDF <- downloadHandler(
     filename = function() {
       paste("My_Report-", Sys.Date(), ".pdf", sep = "")
     },
     content = function(file) {
       message("Starting PDF generation.")
-      # Open PDF
-      pdf(file)
-      # Setup margins
-      par(mar = c(5.1, 4.1, 4.1, 2.1))
       
-      #Show the table in PDF
-      table <- xtable(m)
-      grid.table(table);
-      
-      # Generate and plot the Abbott data
-      plot_data <- Abbott()
-      if (!is.null(plot_data)) {
-        message("Plotting data.")
-        plot(plot_data)
-      }
-      # upload_data <- Upload()
-      # message("test1")
-      # if (is.data.frame(upload_data) && !is.null(upload_data) && nrow(upload_data) > 0 && ncol(upload_data) > 0) {
-      #   message("Printing table.")
-      #   print(xtable::xtable(upload_data))
-      # }
-      
-      dev.off()
+      tryCatch({
+        # Start PDF device
+        pdf(file, width = 10, height = 12)
+        
+        # Plot the table
+        message("Adding table to PDF.")
+        grid.table(m)
+        
+        # Move to next page
+        grid.newpage()
+        
+        # Generate and plot the Abbott data
+        message("Generating Abbott plot.")
+        plot_data <- Abbott()
+        if (!is.null(plot_data) && inherits(plot_data, "ggplot")) {
+          message("Adding plot to PDF.")
+          print(plot_data)
+        } else {
+          message("No valid plot data available.")
+          grid.text("No plot available", gp=gpar(fontsize=20))
+        }
+        
+        # Explicitly close the PDF device
+        message("Closing PDF device.")
+        dev.off()
+        
+      }, error = function(e) {
+        message("Error in PDF generation: ", e$message)
+        dev.off()  # Ensure device is closed even if there's an error
+      }, finally = {
+        message("PDF generation process completed.")
+      })
     }
   )
-  
-  
+
   output$instructions = renderText({
     paste("The steps below will help you to analyze data from the CDC bottle bioassay according to the <u><a href=\"https://www.cdc.gov/mosquitoes/pdfs/CONUS-508.pdf\">CONUS Manual for Evaluating Insecticide Resistance in Mosquitoes Using the CDC Bottle Bioassay Kit[PDF – 19 pages]</a></u><br>
           Programs in the continental United States and its territories can order free Insecticide Resistance Kits by sending an email to USBottleAssayKit@cdc.gov and requesting an order form. Kits include bottles, insecticide, and manual.")
@@ -426,7 +522,6 @@ server <- function(session, input, output) {
     print("<font color=\"#000000\"; font-family:times><b>Step 2: Enter the number of dead mosquitos at each time point in each bottle into the table. At the final time point, enter the total number of mosquitoes (dead and alive) in the bottles. It may help in counting to freeze the bottle at the end of the experiment to knock down all the mosquitoes</b></font>")
   })
   
-} #server
+} 
 
-# Run the application 
 shinyApp(ui = ui, server = server)
