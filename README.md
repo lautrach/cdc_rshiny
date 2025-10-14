@@ -13,4 +13,4 @@ This app is designed to improve the user experience with the CDC bottle bioassay
 ## Installation
 Make sure you have R (≥ 4.0.0) and the following R packages installed:
 ```r
-install.packages(c("shiny", "tidyverse", "ggplot2", "leaflet", "mgcv"))
+install.packages(c("shiny", "dplyr", "ggplot2", "plotly", "shinyMatrix", "DT", "tibble", "samplingbook", "xtable"))
