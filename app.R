@@ -87,7 +87,7 @@ ui <- fluidPage(
       header { background-color: transparent; }
     "))
   ),
-  div(id = "header", tags$img(src = "Logo 2 MCEVBD.png", height = "90px")),
+  div(id = "header", tags$img(src = "logo.jpg", height = "90px")),
   tabsetPanel(
     tabPanel("Insecticide Mortality", fluid = TRUE,
              fluidRow(column(12, htmlOutput("instructions"))),
