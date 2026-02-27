@@ -10,6 +10,7 @@ library(tibble)
 library(samplingbook)
 library(xtable)
 library(gridExtra)
+library(tidyverse)
 
 m <- matrix(c(0,0,0,0,0,0,
               5,1,0,0,0,0,
@@ -53,6 +54,27 @@ colnames(diagtimes) <- c(
   "Cx. pipens", "Cx. quinquefasciatus", "Cx. tarsalis"
 )
 
+#defining functions 
+splitColumn <- function(data, col) {
+  split_vals <- strsplit(as.character(data[[col]]), ",\\s*")
+  max_len <- max(sapply(split_vals, length))
+  new_cols <- as.data.frame(do.call(rbind, lapply(split_vals, function(x) {
+    length(x) <- max_len; x
+  })))
+  names(new_cols) <- paste0(col, "_", seq_len(max_len))
+  cbind(data[ , !names(data) %in% col, drop=FALSE], new_cols)
+}
+
+fillvalues <- function(data, text, col) {
+  vals <- trimws(strsplit(text, ",")[[1]])
+  data[[col]][is.na(data[[col]])] <- vals[1]
+  data
+}
+
+removecolumn <- function(data, col) {
+  data[ , !names(data) %in% col, drop=FALSE]
+}
+
 # <---------- UI ---------->
 ui <- fluidPage(
   theme = shinytheme("yeti"),
@@ -62,7 +84,7 @@ ui <- fluidPage(
       @font-face { font-family: 'DIN Next Thin'; src: url('DINNextLight.otf') format('opentype'); }
       .din-next-font { font-family: 'DIN Next', sans-serif; }
       .din-next-thin { font-family: 'DIN Next Thin', sans-serif; }
-      #header { background-color: transparent; }
+      header { background-color: transparent; }
     "))
   ),
   div(id = "header", tags$img(src = "Logo 2 MCEVBD.png", height = "90px")),
@@ -72,7 +94,7 @@ ui <- fluidPage(
              fluidRow(
                column(2, selectInput('insecticides','Insecticides',c(None='',rownames(diagtimes)))),
                column(2, selectInput('species','Species',c(None='',colnames(diagtimes)[2:6]))),
-               column(8, htmlOutput('datacheck'))
+               column(8, uiOutput("datacheck"))
              ),
              fluidRow(
                column(6, htmlOutput('step2')),
@@ -82,7 +104,7 @@ ui <- fluidPage(
                column(4,
                       span(tags$h4("Data"),style="color:blue;font-style:italic"),
                       selectInput('dropdown_data','Choose a method of uploading data:',
-                                  choices=c(''='','Manual Entry','File Upload')),
+                                  choices=c("=",'Manual Entry','File Upload')),
                       conditionalPanel(
                         condition="input.dropdown_data=='Manual Entry'",
                         matrixInput('sample',value=m,rows=list(names=FALSE),cols=list(names=TRUE),class='numeric')
@@ -124,7 +146,6 @@ ui <- fluidPage(
 
 # <---------- SERVER ---------->
 server <- function(input, output, session) {
-  library(tidyverse)
   rv <- reactiveValues(data = diagtimes, orig = diagtimes)
   data_in <- reactive({
     req(input$dropdown_data)
@@ -145,8 +166,8 @@ server <- function(input, output, session) {
     req(input$insecticides, input$species, data_in())
     data <- data_in()
     mortality <- data
-    for (c in 2:ncol(data)) {
-      mortality[,c] <- data[,c] / data[nrow(data),c]
+    for (col in 2:ncol(data)) {
+      mortality[,col] <- data[,col] / data[nrow(data),col]
     }
     if (mortality$Control[(nrow(data)-1)] > 0.10) {
       '<br><span style="color:red">Warning: mortality in control bottle is too high. Please repeat bioassay.</span>'
@@ -154,18 +175,18 @@ server <- function(input, output, session) {
       '<br>No inconsistencies detected in mortality data.'
     }
   })
-  output$datacheck <- renderText(Datacheck())
+  output$datacheck <- renderUI(HTML(Datacheck()))
   
   AbbottRes <- reactive({
     req(input$insecticides, input$species, data_in())
     data <- data_in()
     mortality <- data
-    for (c in 2:ncol(data)) {
-      mortality[,c] <- data[,c] / data[nrow(data),c]
+    for (col in 2:ncol(data)) {
+      mortality[,col] <- data[,col] / data[nrow(data),col]
     }
     if (mortality$Control[nrow(data)-1] > 0.03) {
-      for (c in 2:(ncol(data)-1)) {
-        mortality[,c] <- (mortality[,c] - mortality[,ncol(data)]) / (1 - mortality[,ncol(data)])
+      for (col in 2:(ncol(data)-1)) {
+        mortality[,col] <- (mortality[,col] - mortality[,ncol(data)]) / (1 - mortality[,ncol(data)])
       }
     }
     diag_time <- diagtimes[input$insecticides, input$species]
@@ -227,7 +248,9 @@ server <- function(input, output, session) {
   output$recommendation <- renderText(Recommendation())
   
   output$downloadPDF <- downloadHandler(
-    filename = function() sprintf('My_Report-%s.pdf', Sys.Date()),
+    filename = function() {
+      sprintf("My_Report-%s.pdf", Sys.Date())
+    },
     content = function(file) {
       pdf(file)
       grid.table(xtable(data_in()))
