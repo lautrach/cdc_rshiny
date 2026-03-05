@@ -90,16 +90,38 @@ ui <- fluidPage(
   div(id = "header", tags$img(src = "logo.jpg", height = "90px")),
   tabsetPanel(
     tabPanel("Insecticide Mortality", fluid = TRUE,
-             fluidRow(column(12, htmlOutput("instructions"))),
+             # fluidRow(column(12, htmlOutput("instructions"))),
+             # fluidRow(
+             #   column(2, selectInput('insecticides','Insecticides',c(None='',rownames(diagtimes)))),
+             #   column(2, selectInput('species','Species',c(None='',colnames(diagtimes)[2:6]))),
+             #   column(8, 
+             #          htmlOutput('resistantstate'),   
+             #          uiOutput('datacheck')
+             #   )
+             # ),
+             # Replace your fluidRows for dropdowns + results with:
+             
              fluidRow(
-               column(2, selectInput('insecticides','Insecticides',c(None='',rownames(diagtimes)))),
-               column(2, selectInput('species','Species',c(None='',colnames(diagtimes)[2:6]))),
-               column(8, uiOutput("datacheck"))
+               column(12,
+                      tags$div(style = "background:#f8f9fa; border-radius:8px; padding:16px 20px; margin-bottom:12px;",
+                               fluidRow(
+                                 column(2, selectInput('insecticides','Insecticides', c(None='', rownames(diagtimes)))),
+                                 column(2, selectInput('species','Species', c(None='', colnames(diagtimes)[2:6]))),
+                                 column(8,
+                                        tags$div(style = "padding-top:4px;",
+                                                 uiOutput('resistantstate'),
+                                                 uiOutput('datacheck'),
+                                                 htmlOutput('recommendation')
+                                        )
+                                 )
+                               )
+                      )
+               )
              ),
-             fluidRow(
-               column(6, htmlOutput('step2')),
-               column(6, htmlOutput('recommendation'))
-             ),
+             # fluidRow(
+             #   column(6, htmlOutput('step2')),
+             #   column(6, htmlOutput('recommendation'))
+             # ),
              fluidRow(
                column(4,
                       span(tags$h4("Data"),style="color:blue;font-style:italic"),
@@ -120,8 +142,7 @@ ui <- fluidPage(
                )
              ),
              fluidRow(
-               column(2, downloadButton('downloadPDF','Download PDF')),
-               column(10, htmlOutput('resistantstate'))
+               column(2, downloadButton('downloadPDF','Download PDF'))
              )
     ),
     
@@ -165,12 +186,13 @@ server <- function(input, output, session) {
   Datacheck <- reactive({
     req(input$insecticides, input$species, data_in())
     data <- data_in()
-    mortality <- data
+    mortality <- data 
     for (col in 2:ncol(data)) {
       mortality[,col] <- data[,col] / data[nrow(data),col]
     }
+    
     if (mortality$Control[(nrow(data)-1)] > 0.10) {
-      '<br><span style="color:red">Warning: mortality in control bottle is too high. Please repeat bioassay.</span>'
+      '<br><span style="color:#E65100">Warning: mortality in control bottle is too high. Please repeat bioassay.</span>'
     } else {
       '<br>No inconsistencies detected in mortality data.'
     }
@@ -217,17 +239,18 @@ server <- function(input, output, session) {
   })
   
   output$plot <- renderPlot({ AbbottRes()$plot })
+  
   ResistantState <- reactive({
     ab    <- AbbottRes()
     mort  <- ab$mortality
     dt    <- ab$diag_time
     obs   <- mort[mort$Time == dt, 'Median']
     if (obs > 0.97) {
-      '<span style="color:#FF0000;"><b>No resistance detected</b>: population susceptible. Continue monitoring.</span>'
+      '<span style="color:#000000;"><b>No resistance detected (population susceptible) </b>:Consider baseline mechanism testing (enzymes, molecular assays, or CDC bottle bioassay with inhibitors). <b>Continue monitoring. </span>'
     } else if (obs >= 0.90) {
-      '<span style="color:#FF9900;"><b>Developing resistance</b>: rotate products and integrate IPM.</span>'
+      '<span style="color:#000000;"><b>Developing resistance</b>: Consider mechanism testing (enzymes, molecular assays, or CDC bottle bioassay with inhibitors) and field testing.<b> Rotate insecticide products and implement integrated pest management best practices.</span>'
     } else {
-      '<span style="color:#FFFF99;"><b>Resistant</b>: avoid this insecticide; consider intensity testing.</span>'
+      '<span style="color:#000000;"><b>Resistant</b>: Consider intensity testing (looking at mortality at 120 minutes or CDC bottle bioassay with 1X, 2X, 5X, and 10X the diagnostic dosage of insecticide ), mechanism testing ( enzymes, molecular assays, or CDC bottle bioassay with inhibitors) and field testing. Avoid this insecticide in this population.</span>'
     }
   })
   output$resistantstate <- renderText(ResistantState())
@@ -242,7 +265,7 @@ server <- function(input, output, session) {
                               P = obs,
                               N = Inf,
                               level = 0.80)[[2]]
-    sprintf('<span style="color:#ff69b4;"><b>Recommended:</b> %d mosquitoes, %.1f µg insecticide, track for %d minutes.</span>',
+    sprintf('<span style="color:#1565C0;"><b>Recommended:</b> %d mosquitoes, %.1f µg insecticide, track for %d minutes.</span>',
             n_rec, conc, dt)
   })
   output$recommendation <- renderText(Recommendation())
