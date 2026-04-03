@@ -4,14 +4,37 @@ library(reshape2)
 library(plyr)
 library(dplyr)
 library(plotly)
-library(shinyMatrix)
+library("shinyMatrix")
 library(DT)
 library(tibble)
 library(samplingbook)
 library(xtable)
 library(gridExtra)
-library(tidyverse)
 
+###function for deleting the rows
+splitColumn <- function(data, column_name) {
+  newColNames <- c("Unmerged_type1", "Unmerged_type2")
+  newCols <- colsplit(data[[column_name]], " ", newColNames)
+  after_merge <- cbind(data, newCols)
+  after_merge[[column_name]] <- NULL
+  after_merge
+}
+
+###_______________________________________________
+### function for inserting a new column
+fillvalues <- function(data, values, columName){
+  df_fill <- data
+  vec <- strsplit(values, ",")[[1]]
+  df_fill <- tibble::add_column(df_fill, newcolumn = vec, .after = columName)
+  df_fill
+}
+
+##function for removing the column
+removecolumn <- function(df, nameofthecolumn){
+  df[ , -which(names(df) %in% nameofthecolumn)]
+}
+
+## Reads in user input data
 m <- matrix(c(0,0,0,0,0,0,
               5,1,0,0,0,0,
               10,5,1,0,0,0,
@@ -26,281 +49,577 @@ m <- matrix(c(0,0,0,0,0,0,
               75,23,23,22,24,2,
               90,23,23,22,24,2,
               105,24,24,22,24,3,
-              120,24,24,24,24,24),
-            nrow = 15, byrow = TRUE,
-            dimnames = list(NULL,
-                            c("Time","Bottle1 Dead","Bottle2 Dead",
-                              "Bottle3 Dead","Bottle4 Dead","Control Dead")))
+              120,24,24,24,24,24), 15, 6, byrow=TRUE, dimnames = list(NULL, c("Time",
+                                                                              "Bottle1 Dead",
+                                                                              "Bottle2 Dead",
+                                                                              "Bottle3 Dead",
+                                                                              "Bottle4 Dead",
+                                                                              "Control Dead")))
 
-diagtimes <- matrix(c(
-  20, 45, 45, 90, 45, 60,
-  0.75, 30, 30, 45, 60, 0,
-  12.5, 15, 30, 15, 30, 60,
-  800, 0, 0, 75, 45, 45,
-  400, 15, 30, 45, 45, 45,
-  2.25, 30, 30, 45, 45, 45,
-  43, 10, 10, 30, 30, 30,
-  0.05, 0, 0, 60, 60, 0,
-  15, 15, 30, 45, 45, 30,
-  20, 10, 45, 30, 45, 30
-), nrow = 10, byrow = TRUE)
-rownames(diagtimes) <- c(
-  "Chlorpyrifos", "Deltamethrin", "Etofenprox", "Fenthion",
-  "Malathion", "Naled", "Permethrin", "Prallethrin",
-  "Pyrethrum", "Sumethrin"
-)
-colnames(diagtimes) <- c(
-  "Insecticide Conc.", "Ae. aegypti", "Ae. albopictus",
-  "Cx. pipens", "Cx. quinquefasciatus", "Cx. tarsalis"
-)
+## Diagnostic times from CDC Manual
+diagtimes = matrix(c(20, 45, 45, 90, 45, 60, 0.75, 30, 30, 45, 60, 0, 12.5, 15, 30, 15, 30, 60, 800, 0, 0, 75, 45,
+                     45, 400, 15, 30, 45, 45, 45, 2.25, 30, 30, 45, 45, 45, 43, 10, 10, 30, 30, 30, 0.05, 0, 0, 60, 60,
+                     0, 15, 15, 30, 45, 45, 30, 20, 10, 45, 30, 45, 30), 10, 6, byrow=TRUE)
+rownames(diagtimes) = c("Chlorpyrifos", "Deltamethrin", "Etofenprox", "Fenthion", "Malathion", "Naled", "Permethrin", "Prallethrin", "Pyrethrum", "Sumethrin")
+colnames(diagtimes) = c("Insecticide Conc.", "Ae. aegypti", "Ae. albopictus", "Cx. pipens", "Cx. quinquefasciatus", "Cx. tarsalis")
 
-#defining functions 
-splitColumn <- function(data, col) {
-  split_vals <- strsplit(as.character(data[[col]]), ",\\s*")
-  max_len <- max(sapply(split_vals, length))
-  new_cols <- as.data.frame(do.call(rbind, lapply(split_vals, function(x) {
-    length(x) <- max_len; x
-  })))
-  names(new_cols) <- paste0(col, "_", seq_len(max_len))
-  cbind(data[ , !names(data) %in% col, drop=FALSE], new_cols)
-}
-
-fillvalues <- function(data, text, col) {
-  vals <- trimws(strsplit(text, ",")[[1]])
-  data[[col]][is.na(data[[col]])] <- vals[1]
-  data
-}
-
-removecolumn <- function(data, col) {
-  data[ , !names(data) %in% col, drop=FALSE]
-}
-
-# <---------- UI ---------->
+# ── UI ──────────────────────────────────────────────────────────────────────────
 ui <- fluidPage(
   theme = shinytheme("yeti"),
+
+  # ── Custom CSS ──
   tags$head(
+    tags$link(
+      href = "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap",
+      rel = "stylesheet"
+    ),
     tags$style(HTML("
-      @font-face { font-family: 'DIN Next'; src: url('DINNextW1G-Regular.otf') format('opentype'); }
-      @font-face { font-family: 'DIN Next Thin'; src: url('DINNextLight.otf') format('opentype'); }
-      .din-next-font { font-family: 'DIN Next', sans-serif; }
-      .din-next-thin { font-family: 'DIN Next Thin', sans-serif; }
-      header { background-color: transparent; }
+      /* ── Base ── */
+      body {
+        font-family: 'Source Sans Pro', sans-serif;
+        background-color: #F4F6F9;
+        color: #2D3748;
+      }
+
+      /* ── Header bar ── */
+      .app-header {
+        background: #FFFFFF;
+        border-bottom: 3px solid #1565C0;
+        padding: 14px 24px;
+        margin: -15px -15px 20px -15px;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      }
+      .app-header img { height: 60px; margin-right: 18px; }
+      .app-header h1 {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1565C0;
+        margin: 0;
+        letter-spacing: -0.3px;
+      }
+
+      /* ── Tabs ── */
+      .nav-tabs { border-bottom: 2px solid #E2E8F0; }
+      .nav-tabs > li > a {
+        font-family: 'Source Sans Pro', sans-serif;
+        font-weight: 600;
+        color: #4A5568;
+        border: none;
+        padding: 10px 20px;
+        transition: color 0.2s;
+      }
+      .nav-tabs > li > a:hover { color: #1565C0; background: transparent; border: none; }
+      .nav-tabs > li.active > a,
+      .nav-tabs > li.active > a:focus,
+      .nav-tabs > li.active > a:hover {
+        color: #1565C0;
+        border: none;
+        border-bottom: 3px solid #1565C0;
+        background: transparent;
+      }
+
+      /* ── Cards ── */
+      .card-panel {
+        background: #FFFFFF;
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin-bottom: 18px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      }
+      .card-panel h4 {
+        font-weight: 700;
+        font-size: 16px;
+        color: #1A202C;
+        margin-top: 0;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #E2E8F0;
+      }
+
+      /* ── Info boxes ── */
+      .info-box {
+        background: #EBF5FB;
+        border-left: 4px solid #1565C0;
+        border-radius: 4px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .info-box a { color: #1565C0; font-weight: 600; }
+
+      .step-label {
+        background: #F7FAFC;
+        border-left: 4px solid #2B6CB0;
+        border-radius: 4px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+        font-weight: 600;
+        font-size: 14px;
+        color: #2D3748;
+      }
+
+      /* ── Recommendation box ── */
+      .rec-box {
+        background: #FFF8E1;
+        border-left: 4px solid #F9A825;
+        border-radius: 4px;
+        padding: 14px 18px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .rec-box b { color: #E65100; }
+
+      /* ── Resistance result boxes ── */
+      .result-susceptible {
+        background: #E8F5E9;
+        border-left: 4px solid #43A047;
+        border-radius: 4px;
+        padding: 14px 18px;
+        font-size: 14px;
+      }
+      .result-developing {
+        background: #FFF3E0;
+        border-left: 4px solid #FB8C00;
+        border-radius: 4px;
+        padding: 14px 18px;
+        font-size: 14px;
+      }
+      .result-resistant {
+        background: #FFEBEE;
+        border-left: 4px solid #E53935;
+        border-radius: 4px;
+        padding: 14px 18px;
+        font-size: 14px;
+      }
+
+      /* ── Warning box ── */
+      .warn-box {
+        background: #FFEBEE;
+        border-left: 4px solid #E53935;
+        border-radius: 4px;
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+      .ok-box {
+        background: #E8F5E9;
+        border-left: 4px solid #43A047;
+        border-radius: 4px;
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+
+      /* ── Select inputs ── */
+      .selectize-input {
+        border-radius: 6px !important;
+        border: 1px solid #CBD5E0 !important;
+        font-family: 'Source Sans Pro', sans-serif !important;
+      }
+
+      /* ── Download button ── */
+      #downloadPDF {
+        background: #1565C0;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 22px;
+        font-weight: 600;
+        font-family: 'Source Sans Pro', sans-serif;
+        transition: background 0.2s;
+      }
+      #downloadPDF:hover { background: #0D47A1; }
+
+      /* ── Plot area ── */
+      .plot-area {
+        background: #FFFFFF;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      }
     "))
   ),
-  div(id = "header", tags$img(src = "logo.jpg", height = "90px")),
+
+  # ── Header ──
+  div(class = "app-header",
+      tags$img(src = "logo2.jpg"),
+      tags$h1("CDC Bottle Bioassay Analysis Tool")
+  ),
+
   tabsetPanel(
+    # ════════════════════════════════════════════════════════════════════════════
+    # TAB 1: Insecticide Mortality
+    # ════════════════════════════════════════════════════════════════════════════
     tabPanel("Insecticide Mortality", fluid = TRUE,
-             # fluidRow(column(12, htmlOutput("instructions"))),
-             # fluidRow(
-             #   column(2, selectInput('insecticides','Insecticides',c(None='',rownames(diagtimes)))),
-             #   column(2, selectInput('species','Species',c(None='',colnames(diagtimes)[2:6]))),
-             #   column(8, 
-             #          htmlOutput('resistantstate'),   
-             #          uiOutput('datacheck')
-             #   )
-             # ),
-             # Replace your fluidRows for dropdowns + results with:
-             
-             fluidRow(
-               column(12,
-                      tags$div(style = "background:#f8f9fa; border-radius:8px; padding:16px 20px; margin-bottom:12px;",
-                               fluidRow(
-                                 column(2, selectInput('insecticides','Insecticides', c(None='', rownames(diagtimes)))),
-                                 column(2, selectInput('species','Species', c(None='', colnames(diagtimes)[2:6]))),
-                                 column(8,
-                                        tags$div(style = "padding-top:4px;",
-                                                 uiOutput('resistantstate'),
-                                                 uiOutput('datacheck'),
-                                                 htmlOutput('recommendation')
-                                        )
-                                 )
-                               )
-                      )
-               )
-             ),
-             # fluidRow(
-             #   column(6, htmlOutput('step2')),
-             #   column(6, htmlOutput('recommendation'))
-             # ),
-             fluidRow(
-               column(4,
-                      span(tags$h4("Data"),style="color:blue;font-style:italic"),
-                      selectInput('dropdown_data','Choose a method of uploading data:',
-                                  choices=c("=",'Manual Entry','File Upload')),
-                      conditionalPanel(
-                        condition="input.dropdown_data=='Manual Entry'",
-                        matrixInput('sample',value=m,rows=list(names=FALSE),cols=list(names=TRUE),class='numeric')
-                      ),
-                      conditionalPanel(
-                        condition="input.dropdown_data=='File Upload'",
-                        fileInput('datafile','Upload CSV File',accept='.csv')
-                      )
-               ),
-               column(8,
-                      span(tags$h4("Resistance Plots"),style="color:blue;font-style:italic"),
-                      plotOutput('plot')
-               )
-             ),
-             fluidRow(
-               column(2, downloadButton('downloadPDF','Download PDF'))
-             )
+
+      # Instructions
+      div(class = "info-box", uiOutput("instructions")),
+
+      # Step 1
+      div(class = "card-panel",
+        tags$h4("Step 1 — Select Insecticide & Species"),
+        div(class = "step-label",
+          "CDC has determined bottle bioassay threshold times and diagnostic doses for several
+           species of mosquitoes. Select the mosquito species and insecticide below to set your
+           threshold and dose."
+        ),
+        fluidRow(
+          column(3, selectInput('insecticides', "Insecticide",
+                                c("Select..." = "", rownames(diagtimes)))),
+          column(3, selectInput('species', "Species",
+                                c("Select..." = "", colnames(diagtimes)[2:6]))),
+          column(6, uiOutput("datacheck"))
+        ),
+        uiOutput("step1_recommendation")
+      ),
+
+      # Step 2
+      div(class = "card-panel",
+        tags$h4("Step 2 — Enter Mortality Data"),
+        div(class = "step-label",
+          "Enter the number of dead mosquitoes at each time point in each bottle.
+           At the final time point, enter the total number of mosquitoes (dead and alive).
+           It may help to freeze the bottle at the end of the experiment to knock down
+           all mosquitoes."
+        ),
+
+        # Recommendation sits here
+        uiOutput("recommendation"),
+
+        fluidRow(
+          column(4,
+            selectInput("dropdown_data",
+                        "Data upload method:",
+                        choices = c("Select..." = "",
+                                    "Manual Entry" = "Manual Entry",
+                                    "File Upload" = "File Upload"),
+                        selected = ""),
+            conditionalPanel(
+              condition = "input.dropdown_data === 'Manual Entry'",
+              matrixInput("sample",
+                          value = m,
+                          rows = list(names = FALSE),
+                          cols = list(names = TRUE),
+                          class = 'numeric')
+            ),
+            conditionalPanel(
+              condition = "input.dropdown_data === 'File Upload'",
+              fileInput("datafile", "Upload CSV File", accept = ".csv")
+            )
+          ),
+          column(8,
+            div(class = "plot-area",
+              tags$h4("Resistance Plot"),
+              plotOutput("plot", height = "420px")
+            )
+          )
+        )
+      ),
+
+      # Results row
+      div(class = "card-panel",
+        fluidRow(
+          column(2, downloadButton("downloadPDF", "Download PDF")),
+          column(10, uiOutput("resistantstate"))
+        )
+      )
     ),
-    
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # TAB 2: Insecticide Diagnostic Times
+    # ════════════════════════════════════════════════════════════════════════════
     tabPanel("Insecticide Diagnostic Times", fluid = TRUE,
-             sidebarLayout(
-               sidebarPanel(
-                 fileInput('file1','Choose CSV File',accept='.csv'),
-                 checkboxInput('header','Header',TRUE),
-                 actionButton('Splitcolumn','Split Column'),
-                 uiOutput('selectUI'),
-                 actionButton('deleteRows','Delete Rows'),
-                 textInput('textbox','Value(s) to insert (comma-separated):'),
-                 actionButton('replacevalues','Insert Values'),
-                 actionButton('removecolumn','Remove Column'),
-                 actionButton('Undo','Undo')
-               ),
-               mainPanel(DTOutput('table1'))
-             )
+      div(class = "card-panel", style = "margin-top:16px;",
+        sidebarLayout(
+          sidebarPanel(
+            fileInput("file1", "Choose CSV File", accept = ".csv"),
+            checkboxInput("header", "Header", TRUE),
+            actionButton("Splitcolumn", "Split Column"),
+            uiOutput("selectUI"),
+            actionButton("deleteRows", "Delete Rows"),
+            textInput("textbox", label = "Value to replace:"),
+            actionButton("replacevalues", label = 'Replace values'),
+            actionButton("removecolumn", "Remove Column"),
+            actionButton("Undo", 'Undo')
+          ),
+          mainPanel(
+            DTOutput("table1")
+          )
+        )
+      )
     )
   )
 )
 
-# <---------- SERVER ---------->
-server <- function(input, output, session) {
-  rv <- reactiveValues(data = diagtimes, orig = diagtimes)
-  data_in <- reactive({
+# ── Server ──────────────────────────────────────────────────────────────────────
+server <- function(session, input, output) {
+  library(tidyverse)
+  library(tibble)
+  library(ggplot2)
+  library(gridExtra)
+  library(samplingbook)
+
+  rv <- reactiveValues(data = diagtimes, orig = diagtimes, state = FALSE)
+
+  # Data source selection
+  data_source <- reactive({
     req(input$dropdown_data)
-    if (input$dropdown_data == 'Manual Entry') {
-      df <- as.data.frame(input$sample)
-    } else {
+    input$dropdown_data
+  })
+
+  # Abbott function — returns list with plot + computed values
+  Abbott <- reactive({
+    req(input$insecticides)
+    req(input$species)
+    req(data_source())
+
+    if (data_source() == "Manual Entry") {
+      data <- as.data.frame(input$sample)
+    } else if (data_source() == "File Upload") {
       req(input$datafile)
-      df <- read.csv(input$datafile$datapath, header = TRUE)
-    }
-    if ('Control Dead' %in% names(df)) {
-      names(df)[names(df)=='Control Dead'] <- 'Control'
-    }
-    df
-  })
-  
-  
-  Datacheck <- reactive({
-    req(input$insecticides, input$species, data_in())
-    data <- data_in()
-    mortality <- data 
-    for (col in 2:ncol(data)) {
-      mortality[,col] <- data[,col] / data[nrow(data),col]
-    }
-    
-    if (mortality$Control[(nrow(data)-1)] > 0.10) {
-      '<br><span style="color:#E65100">Warning: mortality in control bottle is too high. Please repeat bioassay.</span>'
+      data <- read.csv(input$datafile$datapath)
     } else {
-      '<br>No inconsistencies detected in mortality data.'
+      return(NULL)
     }
-  })
-  output$datacheck <- renderUI(HTML(Datacheck()))
-  
-  AbbottRes <- reactive({
-    req(input$insecticides, input$species, data_in())
-    data <- data_in()
+
     mortality <- data
-    for (col in 2:ncol(data)) {
-      mortality[,col] <- data[,col] / data[nrow(data),col]
+    for (c in 2:ncol(data)) {
+      mortality[, c] <- data[, c] / data[nrow(data), c]
     }
-    if (mortality$Control[nrow(data)-1] > 0.03) {
-      for (col in 2:(ncol(data)-1)) {
-        mortality[,col] <- (mortality[,col] - mortality[,ncol(data)]) / (1 - mortality[,ncol(data)])
+
+    if (mortality$Control[(nrow(data) - 1)] > 0.03) {
+      for (c in 2:(ncol(data) - 1)) {
+        mortality[, c] <- (mortality[, c] - mortality[, ncol(data)]) / (1 - mortality[, ncol(data)])
       }
     }
+
     diag_time <- diagtimes[input$insecticides, input$species]
     conc      <- diagtimes[input$insecticides, 1]
-    mortality$Median <- apply(mortality[,2:(ncol(data)-1)], 1, median, na.rm = TRUE)
-    mortality_long <- pivot_longer(mortality[ ,1:(ncol(data)-1)],
-                                   cols = 2:(ncol(data)-1),
-                                   names_to = 'Replicate',
-                                   values_to = 'Mortality')
-    
+
+    mortality$Median <- apply(mortality[, 2:(ncol(data) - 1)], 1, median, na.rm = TRUE)
+    mortality_long <- pivot_longer(mortality[, 1:(ncol(data) - 1)],
+                                   cols = 2:(ncol(data) - 1),
+                                   names_to = "Replicate",
+                                   values_to = "Mortality")
+
     graph1 <- ggplot() +
-      geom_rect(aes(xmin=0, xmax=Inf, ymin=0, ymax=0.9),   alpha=0.5, fill="red") +
-      geom_rect(aes(xmin=0, xmax=Inf, ymin=0.9, ymax=0.97),alpha=0.5, fill="orange") +
-      geom_rect(aes(xmin=0, xmax=Inf, ymin=0.97, ymax=1),  alpha=0.5, fill="yellow") +
-      geom_vline(xintercept = diag_time, color="blue", linetype="dotted") +
-      geom_line(data = mortality_long[mortality_long$Time < max(data$Time), ],
-                aes(x=Time, y=Mortality, group=Replicate),
-                color="white", linetype="dashed") +
-      geom_line(data = mortality[1:(nrow(data)-1), ],
-                aes(x=Time, y=Median)) +
-      labs(y = "Percent Mortality", x = "Time (minutes)") +
-      theme_minimal()
-    
-    list(plot = graph1,
-         diag_time = diag_time,
-         conc      = conc,
-         mortality = mortality)
+      geom_rect(aes(xmin = 0, xmax = Inf, ymin = 0, ymax = 0.9), alpha = 0.5, fill = "#EF5350") +
+      geom_rect(aes(xmin = 0, xmax = Inf, ymin = 0.9, ymax = 0.97), alpha = 0.5, fill = "#FFA726") +
+      geom_rect(aes(xmin = 0, xmax = Inf, ymin = 0.97, ymax = 1), alpha = 0.5, fill = "#FFEE58") +
+      geom_vline(xintercept = diag_time, color = "#1565C0", linetype = "dotted", linewidth = 1) +
+      geom_line(data = mortality_long[which(mortality_long$Time < max(data$Time)), ],
+                aes(x = Time, y = Mortality, group = Replicate), color = "grey70", linetype = "dashed") +
+      geom_line(data = mortality[1:(nrow(data) - 1), ],
+                aes(x = Time, y = Median), linewidth = 1.1, color = "#1A237E") +
+      ylab("Percent Mortality") +
+      xlab("Time (minutes)") +
+      theme_minimal(base_family = "sans", base_size = 14) +
+      theme(
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "white", color = NA)
+      )
+
+    df <- mortality[1:(nrow(data) - 1), ]
+    observed_per <- df[df$Time == diag_time, ]$Median
+
+    rv$state       <- TRUE
+    rv$observed_per <- observed_per
+    rv$diag_time   <- diag_time
+    rv$conc        <- conc
+
+    return(graph1)
   })
-  
-  output$plot <- renderPlot({ AbbottRes()$plot })
-  
-  ResistantState <- reactive({
-    ab    <- AbbottRes()
-    mort  <- ab$mortality
-    dt    <- ab$diag_time
-    obs   <- mort[mort$Time == dt, 'Median']
-    if (obs > 0.97) {
-      '<span style="color:#000000;"><b>No resistance detected (population susceptible) </b>:Consider baseline mechanism testing (enzymes, molecular assays, or CDC bottle bioassay with inhibitors). <b>Continue monitoring. </span>'
-    } else if (obs >= 0.90) {
-      '<span style="color:#000000;"><b>Developing resistance</b>: Consider mechanism testing (enzymes, molecular assays, or CDC bottle bioassay with inhibitors) and field testing.<b> Rotate insecticide products and implement integrated pest management best practices.</span>'
+
+  # Plot output
+  output$plot <- renderPlot({
+    req(data_source())
+    Abbott()
+  })
+
+  # Data check output — uses uiOutput / renderUI so HTML renders
+  output$datacheck <- renderUI({
+    req(input$insecticides)
+    req(input$species)
+    req(data_source())
+
+    if (data_source() == "Manual Entry") {
+      data <- as.data.frame(input$sample)
+    } else if (data_source() == "File Upload") {
+      req(input$datafile)
+      data <- read.csv(input$datafile$datapath)
     } else {
-      '<span style="color:#000000;"><b>Resistant</b>: Consider intensity testing (looking at mortality at 120 minutes or CDC bottle bioassay with 1X, 2X, 5X, and 10X the diagnostic dosage of insecticide ), mechanism testing ( enzymes, molecular assays, or CDC bottle bioassay with inhibitors) and field testing. Avoid this insecticide in this population.</span>'
+      return(div(class = "info-box", "Please select a data upload method."))
+    }
+
+    mortality <- data
+    for (c in 2:ncol(data)) { mortality[, c] <- data[, c] / data[nrow(data), c] }
+
+    if (mortality$Control[(nrow(data) - 1)] > 0.1) {
+      div(class = "warn-box",
+          icon("exclamation-triangle"),
+          " Warning: mortality in control bottle is too high. Please repeat bioassay.")
+    } else {
+      div(class = "ok-box",
+          icon("check-circle"),
+          " No inconsistencies detected in mortality data.")
     }
   })
-  output$resistantstate <- renderText(ResistantState())
-  
-  Recommendation <- reactive({
-    ab   <- AbbottRes()
-    dt   <- ab$diag_time
-    conc <- ab$conc
-    mort <- ab$mortality
-    obs  <- mort[mort$Time == dt, 'Median']
-    n_rec <- sample.size.prop(e = 0.1 * obs,
-                              P = obs,
+
+  # Step 1 recommendation — concentration and diagnostic time
+  output$step1_recommendation <- renderUI({
+    req(input$insecticides, input$species)
+    conc      <- diagtimes[input$insecticides, "Insecticide Conc."]
+    diag_time <- diagtimes[input$insecticides, input$species]
+
+    if (diag_time == 0) {
+      return(div(class = "warn-box", style = "margin-top:14px;",
+        "No diagnostic time available for this insecticide/species combination."
+      ))
+    }
+
+    div(class = "rec-box", style = "margin-top:14px;",
+      HTML(sprintf(
+        '<b>Recommendation:</b> Treat each bottle with <b>%.1f \u00b5g</b> of insecticide
+         and track mortality for a minimum of <b>%d minutes</b>.',
+        conc, diag_time
+      ))
+    )
+  })
+
+  # Recommendation output — uses renderUI so styled HTML renders properly
+  output$recommendation <- renderUI({
+    req(rv$state)
+    req(input$insecticides)
+    req(input$species)
+
+    observed_per <- rv$observed_per
+    conc         <- rv$conc
+    diag_time    <- rv$diag_time
+
+    if (0.1 * observed_per > observed_per || 0.1 * observed_per > (1 - observed_per)) {
+      return(div(class = "warn-box", style = "margin-bottom:14px;",
+        "No recommended diagnostic time available for this insecticide in this mosquito species.
+         Please choose a different insecticide."
+      ))
+    }
+
+    n_rec <- sample.size.prop(e = 0.1 * observed_per,
+                              P = observed_per,
                               N = Inf,
                               level = 0.80)[[2]]
-    sprintf('<span style="color:#1565C0;"><b>Recommended:</b> %d mosquitoes, %.1f µg insecticide, track for %d minutes.</span>',
-            n_rec, conc, dt)
+
+    div(class = "rec-box", style = "margin-bottom:14px;",
+      HTML(sprintf(
+        '<b>Recommendation:</b> Use <b>%d</b> mosquitoes, treat each bottle with
+         <b>%.1f \u00b5g</b> of insecticide, and track mortality for a minimum of
+         <b>%d minutes</b>.',
+        n_rec, conc, diag_time
+      ))
+    )
   })
-  output$recommendation <- renderText(Recommendation())
-  
+
+  # Resistant state output — uses renderUI for styled boxes
+  output$resistantstate <- renderUI({
+    req(rv$state)
+
+    observed_per <- rv$observed_per
+
+    if (observed_per > 0.97) {
+      div(class = "result-susceptible",
+        HTML('<b>No resistance detected (population susceptible):</b>
+              Consider baseline mechanism testing (enzymes, molecular assays, or CDC bottle
+              bioassay with inhibitors). <b>Continue monitoring.</b>'))
+    } else if (observed_per >= 0.90 ) {
+      div(class = "result-developing",
+        HTML('<b>Developing resistance:</b>
+              Consider mechanism testing (enzymes, molecular assays, or CDC bottle bioassay
+              with inhibitors) and field testing. <b>Rotate insecticide products and implement
+              integrated pest management best practices.</b>'))
+    } else {
+      div(class = "result-resistant",
+        HTML('<b>Resistant:</b>
+              Consider intensity testing (mortality at 120 minutes or CDC bottle bioassay with
+              1X, 2X, 5X, and 10X the diagnostic dosage), mechanism testing (enzymes, molecular
+              assays, or CDC bottle bioassay with inhibitors) and field testing.
+              <b>Avoid this insecticide in this population.</b>'))
+    }
+  })
+
+  # PDF download handler
   output$downloadPDF <- downloadHandler(
     filename = function() {
-      sprintf("My_Report-%s.pdf", Sys.Date())
+      paste("CDC_Bioassay_Report-", Sys.Date(), ".pdf", sep = "")
     },
     content = function(file) {
-      pdf(file)
-      grid.table(xtable(data_in()))
-      print(AbbottRes()$plot)
+      req(data_source())
+
+      pdf(file, width = 10, height = 12)
+
+      if (data_source() == "Manual Entry") {
+        grid.table(input$sample)
+      } else if (data_source() == "File Upload") {
+        grid.table(head(read.csv(input$datafile$datapath)))
+      }
+
+      grid.newpage()
+      print(Abbott())
       dev.off()
     }
   )
-  
+
+  # ── Insecticide Diagnostic Times tab ──
   observeEvent(input$file1, {
     file <- input$file1
+    ext <- tools::file_ext(file$datapath)
     req(file)
-    validate(need(tools::file_ext(file$datapath) == 'csv', 'CSV required'))
+    validate(need(ext == "csv", "Please upload a csv file"))
     rv$orig <- read.csv(file$datapath, header = input$header)
     rv$data <- rv$orig
   })
-  output$selectUI <- renderUI({ req(rv$data); selectInput('selectcolumn','Select column',choices = names(rv$data)) })
-  observeEvent(input$Splitcolumn, { rv$data <- splitColumn(rv$data, input$selectcolumn) })
-  observeEvent(input$deleteRows,   { rv$data <- rv$data[-input$table1_rows_selected, ] })
-  output$table1 <- renderDT({ datatable(rv$data, editable = TRUE) })
-  observeEvent(input$table1_cell_edit, {
-    info <- input$table1_cell_edit
-    rv$data[info$row, info$col] <- info$value
+
+  output$selectUI <- renderUI({
+    req(rv$data)
+    selectInput(inputId = 'selectcolumn', label = 'Select column', choices = names(rv$data))
   })
-  observeEvent(input$replacevalues, { rv$data <- fillvalues(rv$data, input$textbox, input$selectcolumn) })
-  observeEvent(input$removecolumn, { rv$data <- removecolumn(rv$data, input$selectcolumn) })
-  observeEvent(input$Undo,          { rv$data <- rv$orig })
+
+  observeEvent(input$Splitcolumn, {
+    rv$data <- splitColumn(rv$data, input$selectcolumn)
+  })
+
+  observeEvent(input$deleteRows, {
+    if (!is.null(input$table1_rows_selected)) {
+      rv$data <- rv$data[-as.numeric(input$table1_rows_selected), ]
+    }
+  })
+
+  output$table1 <- renderDT({
+    datatable(rv$data, editable = TRUE)
+  })
+
+  observeEvent(input$table1_cell_edit, {
+    row  <- input$table1_cell_edit$row
+    clmn <- input$table1_cell_edit$col
+    rv$data[row, clmn] <- input$table1_cell_edit$value
+  })
+
+  observeEvent(input$replacevalues, {
+    rv$data <- fillvalues(rv$data, input$textbox, input$selectcolumn)
+  })
+
+  observeEvent(input$removecolumn, {
+    rv$data <- removecolumn(rv$data, input$selectcolumn)
+  })
+
+  observeEvent(input$Undo, {
+    rv$data <- rv$orig
+  })
+
+  # ── Static text outputs ──
+  output$instructions <- renderUI({
+    HTML("The steps below will help you to analyze data from the CDC bottle bioassay according to the <u><a href=\"https://www.cdc.gov/mosquitoes/pdfs/CONUS-508.pdf\">CONUS Manual for Evaluating Insecticide Resistance in Mosquitoes Using the CDC Bottle Bioassay Kit[PDF – 19 pages]</a></u><br>
+          Programs in the continental United States and its territories can order free Insecticide Resistance Kits by sending an email to USBottleAssayKit@cdc.gov and requesting an order form. Kits include bottles, insecticide, and manual.")
+  })
 }
 
-shinyApp(ui, server)
-
+shinyApp(ui = ui, server = server)
